@@ -21,10 +21,10 @@ params_e <- list(
   n_r_only = 20,    # SNPs affecting survival only
   n_both   = 20,    # SNPs affecting Y and survival
   h2_y     = 0.10,  # variance in Y explained by SNPs
-  h2_r     = 0.20,  # survival liability explained by SNPs
-  b_uy     = 0.50,  # effect of U on Y
-  g_u      = 1.00,  # effect of U on survival (logit scale)
-  surv     = 0.50   # proportion alive at recruitment
+  h2_r     = 0.30,  # survival liability explained by SNPs
+  b_uy     = 0.80,  # effect of U on Y
+  g_u      = 1.50,  # effect of U on survival (logit scale)
+  surv     = 0.30   # proportion alive at recruitment
 )
 
 simulate_e <- function(params = params_e, seed = 5001) {
