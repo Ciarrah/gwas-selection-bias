@@ -1,0 +1,194 @@
+---
+title: "Module (a): Non-representative participation"
+subtitle: "Companion to *Navigating Selection Bias in Genome-Wide Association Studies*"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+---
+
+```{r setup, include = FALSE}
+# Knit from 6_vignettes/; all paths are relative to the repository root
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, fig.width = 8,
+                      fig.height = 5)
+```
+
+```{r packages}
+library(ggplot2)
+source("1_functions/gwas_helpers.R")
+source("3_diagnostics/participation_gwas.R")
+source("3_diagnostics/negative_controls.R")
+source("4_correction-individual-level/ipw.R")
+source("4_correction-individual-level/heckman.R")
+
+cols <- c("analysis", "snp_group", "rel_bias_causal", "coverage", "power",
+          "type1_error")
+```
+
+## Scenario
+
+Figure 2(a). Genotype G affects the outcome Y directly and through a measured,
+heritable predictor Z (e.g. education). An unmeasured factor U also affects Y.
+Participation S depends on:
+
+- **a1:** Z and E (E predicts participation but not Y), i.e. selection on
+  measured factors;
+- **a2:** Z, E and Y itself, i.e. selection on the outcome.
+
+N is a negative control outcome: it has no genetic effects but shares
+non-genetic causes with Z and Y. SNPs are grouped by what they affect: Y
+directly (`Y_snps`), Z (`Z_snps`), or nothing (`null`).
+
+```{r simulate}
+if (!file.exists("data/module_a.rds")) source("2_simulations/a_participation.R")
+d <- readRDS("data/module_a.rds")
+p <- d$pheno
+
+knitr::kable(data.frame(parameter = names(d$params),
+                        value = unlist(d$params)), row.names = FALSE)
+```
+
+## 1. The problem: naive GWAS among participants
+
+```{r naive}
+full <- run_gwas(p$Y, d$G)
+a1   <- run_gwas(p$Y[p$S_a1 == 1], d$G[p$S_a1 == 1, ])
+a2   <- run_gwas(p$Y[p$S_a2 == 1], d$G[p$S_a2 == 1, ])
+
+knitr::kable(rbind(
+  compare_by_group(full, d$truth, d$groups, "full cohort"),
+  compare_by_group(a1,   d$truth, d$groups, "a1 naive"),
+  compare_by_group(a2,   d$truth, d$groups, "a2 naive")
+)[, cols], digits = 3, row.names = FALSE)
+```
+
+Selection on Z biases the SNPs that act through Z (a1). Selection on the
+outcome also biases the SNPs acting directly on Y (a2). Null SNPs are barely
+affected, so a genome-wide summary such as λ hides the problem.
+
+## 2. Diagnostics
+
+### Participation GWAS
+
+```{r participation}
+for (sc in c("S_a1", "S_a2")) {
+  pg <- participation_gwas(p[[sc]], d$G)
+  s  <- summarise_participation(pg)
+  cat(sprintf("\n%s: lambda = %.2f\n", sc, attr(s, "lambda")))
+  print(s, row.names = FALSE)
+  cat("Proportion of SNPs with p < 0.05, by group:\n")
+  print(round(sapply(d$groups, function(i) mean(pg$p[i] < 0.05)), 2))
+}
+```
+
+Without a participation indicator, compare allele frequencies with a
+population reference. Here the participants are part of the reference, so
+`nested = TRUE`.
+
+```{r allele-frequency}
+af <- allele_freq_test(d$G[p$S_a2 == 1, ], d$G, nested = TRUE)
+summarise_participation(af)
+```
+
+### Negative control outcome
+
+```{r negative-control}
+for (sc in c("S_a1", "S_a2")) {
+  nc <- negative_control_outcome(p$N, d$G, selected = p[[sc]] == 1,
+                                 reference = rep(TRUE, nrow(p)))
+  cat("\n", sc, "\n")
+  print(rbind(
+    cbind(snp_group = "all (participants)", summarise_negative_control(nc$sample)),
+    cbind(snp_group = "all (reference)",    summarise_negative_control(nc$reference)),
+    do.call(rbind, lapply(names(d$groups), function(g)
+      cbind(snp_group = g, summarise_negative_control(nc$sample, d$groups[[g]]))))
+  ), row.names = FALSE)
+}
+```
+
+Inflation is concentrated in the SNPs linked to selection and diluted in the
+genome-wide λ.
+
+## 3. Corrections
+
+### Inverse probability weighting
+
+```{r ipw}
+ipw_res <- list()
+for (sc in c("S_a1", "S_a2")) {
+  sel <- p[[sc]] == 1
+  w   <- ipw_weights(p[[sc]], covar = p[, c("Z", "E")])
+  cat(sprintf("%s: %d participants, effective sample size %.0f\n",
+              sc, sum(sel), attr(w, "ess")))
+  ipw_res[[sc]] <- ipw_gwas(p$Y[sel], d$G[sel, ], w)
+}
+
+knitr::kable(rbind(
+  compare_by_group(ipw_res$S_a1, d$truth, d$groups, "a1 IPW"),
+  compare_by_group(ipw_res$S_a2, d$truth, d$groups, "a2 IPW")
+)[, cols], digits = 3, row.names = FALSE)
+```
+
+IPW removes bias from selection on measured factors (a1) at the cost of a much
+smaller effective sample size. It cannot correct selection on the outcome (a2).
+
+### Heckman correction
+
+Heckman estimates direct SNP effects conditional on Z, so it is compared with
+`truth_direct`. When SNPs affect selection (a2), the SNP must be in the
+selection equation.
+
+```{r heckman, cache = TRUE}
+sel   <- p$S_a2 == 1
+naive_adjZ <- run_gwas(p$Y[sel], d$G[sel, ], covar = p[sel, "Z", drop = FALSE])
+hk_once <- heckman_gwas(p$S_a2, p$Y, d$G, sel_covar = p[, c("Z", "E")],
+                        out_covar = p[, "Z", drop = FALSE], per_snp = FALSE)
+hk_snp  <- heckman_gwas(p$S_a2, p$Y, d$G, sel_covar = p[, c("Z", "E")],
+                        out_covar = p[, "Z", drop = FALSE], per_snp = TRUE)
+
+cat(sprintf("Inverse Mills ratio coefficient: %.3f\n", attr(hk_snp, "imr_coef")))
+
+knitr::kable(rbind(
+  compare_by_group(naive_adjZ, d$truth_direct, d$groups, "a2 naive (adj. Z)"),
+  compare_by_group(hk_once,    d$truth_direct, d$groups, "a2 Heckman, SNP not in selection"),
+  compare_by_group(hk_snp,     d$truth_direct, d$groups, "a2 Heckman, SNP in selection")
+)[, cols], digits = 3, row.names = FALSE)
+```
+
+## 4. Summary
+
+```{r summary-figure, fig.height = 6}
+grp <- rep(names(d$groups), lengths(d$groups))[order(unlist(d$groups))]
+
+est <- function(res, truth, label) {
+  data.frame(analysis = label, snp_group = grp, truth = truth,
+             beta = res$beta)
+}
+
+plot_df <- rbind(
+  est(a1,           d$truth,        "a1: naive"),
+  est(ipw_res$S_a1, d$truth,        "a1: IPW"),
+  est(a2,           d$truth,        "a2: naive"),
+  est(hk_snp,       d$truth_direct, "a2: Heckman (SNP in selection)")
+)
+plot_df$analysis <- factor(plot_df$analysis, levels = unique(plot_df$analysis))
+
+ggplot(plot_df, aes(truth, beta, colour = snp_group)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", colour = "grey50") +
+  geom_point(alpha = 0.7) +
+  facet_wrap(~ analysis, nrow = 2) +
+  labs(x = "True SNP effect", y = "Estimated SNP effect",
+       colour = "SNP group") +
+  theme_bw()
+```
+
+Points on the dashed line are unbiased. Under selection on measured factors
+(a1), IPW restores the Z-acting SNPs to the line. Under selection on the
+outcome (a2), Heckman with the SNP in the selection equation recovers the
+direct effects, provided an exclusion variable (E) is available.
+
+```{r session}
+sessionInfo()
+```
