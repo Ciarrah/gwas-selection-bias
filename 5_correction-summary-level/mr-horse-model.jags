@@ -1,0 +1,30 @@
+# MR-Horse model (Grant and Burgess 2024), adapted for index event bias
+# (Donovan et al.): theta = collider slope b; alpha[i] = direct SNP effect on
+# progression (horseshoe prior); rho[i] = correlation of pleiotropic and
+# incidence effects, rho = 2r - 1 with r ~ Beta(3, 1).
+model {
+  for (i in 1:N) {
+    by[i] ~ dnorm(mu[i], 1 / (sy[i] * sy[i]))
+    mu[i] <- theta * bx0[i] + alpha[i]
+    bx[i] ~ dnorm(bx0[i], 1 / (sx[i] * sx[i]))
+
+    bx0[i] ~ dnorm(mx0 + (sqrt(vx0) / (tau * phi[i])) * rho[i] * alpha[i],
+                   1 / ((1 - rho[i]^2) * vx0))
+    r[i] ~ dbeta(3, 1) T(, 1)
+    rho[i] <- 2 * r[i] - 1
+
+    alpha[i] ~ dnorm(0, 1 / (tau * tau * phi[i] * phi[i]))
+    phi[i] <- a[i] / sqrt(b[i])
+    a[i] ~ dnorm(0, 1) T(0, )
+    b[i] ~ dgamma(0.5, 0.5)
+  }
+
+  c ~ dnorm(0, 1) T(0, )
+  d ~ dgamma(0.5, 0.5)
+  tau <- c / sqrt(d)
+
+  vx0 ~ dnorm(0, 1) T(0, )
+  mx0 ~ dnorm(0, 1)
+
+  theta ~ dunif(-10, 10)
+}
