@@ -22,7 +22,7 @@ source("1_functions/simulate_genotypes.R")
 source("1_functions/gwas_helpers.R")
 source("1_functions/selection_helpers.R")
 
-set.seed(2025)
+set.seed(97)
 
 # ---- Parameters -------------------------------------------------------------
 params <- list(
