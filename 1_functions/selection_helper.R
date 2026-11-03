@@ -1,5 +1,5 @@
 # =============================================================================
-# selection_helpers.R
+# selection_helper.R
 # Shared functions for generating selection into the sample.
 # Contains functions only; no code runs when the file is sourced.
 # =============================================================================
