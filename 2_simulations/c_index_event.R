@@ -21,13 +21,13 @@ source("1_functions/simulate_genotypes.R")
 source("1_functions/gwas_helpers.R")
 
 base_c <- list(n = 50000, m = 1000, h2_x = 0.30, h2_y = 0.20,
-               b_ux = 0.60, b_uy = 0.50, K_x = 0.30, n_neg_control = 20)
+               b_ux = 0.80, b_uy = 0.80, K_x = 0.30, n_neg_control = 20)
 
 params_c <- list(
   c1 = modifyList(base_c, list(label = "independent", n_x_only = 50,
                                n_y_only = 50, n_both = 50, rho_both = 0)),
-  c2 = modifyList(base_c, list(label = "correlated", n_x_only = 50,
-                               n_y_only = 50, n_both = 50, rho_both = 0.6)),
+  c2 = modifyList(base_c, list(label = "correlated", n_x_only = 100,
+                               n_y_only = 50, n_both = 25, rho_both = 0.6)),
   c3 = modifyList(base_c, list(label = "sparse", n_x_only = 100,
                                n_y_only = 10, n_both = 10, rho_both = 0))
 )
