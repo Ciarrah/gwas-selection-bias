@@ -59,23 +59,54 @@ summarise_negative_control <- function(res, idx = NULL, alpha = 0.05) {
 
 # ---- Example (runs only when this file is run directly) ---------------------
 if (sys.nframe() == 0) {
-  d <- readRDS("data/module_a.rds")
-  p <- d$pheno
 
-  for (sc in c("S_a1", "S_a2")) {
-    cat("\n====", sc, ": negative control outcome N ====\n")
+  # ---- Negative control outcome (module a) ---------------------------------
+  if (file.exists("data/module_a.rds")) {
+    d <- readRDS("data/module_a.rds")
+    p <- d$pheno
 
-    nc <- negative_control_outcome(p$N, d$G, selected = p[[sc]] == 1,
-                                   reference = rep(TRUE, nrow(p)))
+    for (sc in c("S_a1", "S_a2")) {
+      cat("\n====", sc, ": negative control outcome N ====\n")
 
-    cat("All SNPs:\n")
+      nc <- negative_control_outcome(p$N, d$G, selected = p[[sc]] == 1,
+                                     reference = rep(TRUE, nrow(p)))
+
+      cat("All SNPs:\n")
+      print(rbind(
+        cbind(sample = "participants", summarise_negative_control(nc$sample)),
+        cbind(sample = "reference",    summarise_negative_control(nc$reference))
+      ))
+
+      cat("By SNP group (participants):\n")
+      print(do.call(rbind, lapply(names(d$groups), function(g)
+        cbind(snp_group = g, summarise_negative_control(nc$sample, d$groups[[g]])))))
+    }
+  }
+
+  # ---- Negative control variants (module c) --------------------------------
+  # 20 X-only SNPs assumed known (from prior evidence) not to affect progression.
+  # Collider bias predicts beta_Y opposite in sign to beta_X (when U raises both
+  # X and Y), so a directional test is more powerful than counting p < 0.05.
+  for (sc in c("c1", "c2", "c3")) {
+    f <- sprintf("data/module_%s.rds", sc)
+    if (!file.exists(f)) next
+    d  <- readRDS(f)
+    nc <- d$neg_control
+    s  <- d$sumstats[nc, ]
+    dir_test <- function(z_y) {
+      zd <- sum(sign(s$beta_x) * z_y) / sqrt(length(z_y))
+      c(directional_z = zd, directional_p = 2 * stats::pnorm(-abs(zd)))
+    }
+
+    cat(sprintf("\n==== Module %s: %d negative control variants ====\n",
+                sc, length(nc)))
     print(rbind(
-      cbind(sample = "participants", summarise_negative_control(nc$sample)),
-      cbind(sample = "reference",    summarise_negative_control(nc$reference))
-    ))
-
-    cat("By SNP group (participants):\n")
-    print(do.call(rbind, lapply(names(d$groups), function(g)
-      cbind(snp_group = g, summarise_negative_control(nc$sample, d$groups[[g]])))))
+      cbind(analysis = "cases (naive)",
+            summarise_negative_control(d$gwas_y, nc),
+            t(dir_test(s$beta_y / s$se_y))),
+      cbind(analysis = "population (reference)",
+            summarise_negative_control(d$gwas_y_pop, nc),
+            t(dir_test(s$beta_y_pop / s$se_y_pop)))
+    ), row.names = FALSE)
   }
 }
