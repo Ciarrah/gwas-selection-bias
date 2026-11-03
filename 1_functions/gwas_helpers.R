@@ -120,6 +120,10 @@ genomic_lambda <- function(p) {
 
 #' Compare GWAS estimates with the known true SNP effects
 #'
+#' Metrics for causal SNPs (bias, relative bias, power) are NaN when the
+#' supplied SNPs contain no causal SNPs, and metrics for null SNPs (type I
+#' error, lambda) are NaN/NA when they contain no null SNPs.
+#'
 #' @param gwas Output of run_gwas() (or any data frame with beta, se, p).
 #' @param truth Vector of true effects, same order as gwas rows.
 #' @param label Optional name for the analysis (e.g. "naive", "IPW").
@@ -128,17 +132,21 @@ genomic_lambda <- function(p) {
 compare_to_truth <- function(gwas, truth, label = NA_character_, alpha = 0.05) {
   stopifnot(nrow(gwas) == length(truth))
   causal <- truth != 0
-  lo <- gwas$beta - stats::qnorm(0.975) * gwas$se
-  hi <- gwas$beta + stats::qnorm(0.975) * gwas$se
-  
+  err    <- gwas$beta - truth
+  lo     <- gwas$beta - stats::qnorm(0.975) * gwas$se
+  hi     <- gwas$beta + stats::qnorm(0.975) * gwas$se
+
   data.frame(
-    analysis      = label,
-    bias_causal   = mean((gwas$beta - truth)[causal], na.rm = TRUE),
-    mean_abs_bias = mean(abs(gwas$beta - truth), na.rm = TRUE),
-    rmse          = sqrt(mean((gwas$beta - truth)^2, na.rm = TRUE)),
-    coverage      = mean(lo <= truth & truth <= hi, na.rm = TRUE),
-    power         = mean(gwas$p[causal]  < alpha, na.rm = TRUE),
-    type1_error   = mean(gwas$p[!causal] < alpha, na.rm = TRUE),
-    lambda_null   = genomic_lambda(gwas$p[!causal])
+    analysis         = label,
+    n_snps           = length(truth),
+    bias_causal      = mean(err[causal], na.rm = TRUE),
+    bias_toward_null = mean((sign(truth) * err)[causal], na.rm = TRUE),  # < 0: attenuated
+    rel_bias_causal  = mean((err / truth)[causal], na.rm = TRUE),        # proportional bias
+    mean_abs_bias    = mean(abs(err), na.rm = TRUE),
+    rmse             = sqrt(mean(err^2, na.rm = TRUE)),
+    coverage         = mean(lo <= truth & truth <= hi, na.rm = TRUE),
+    power            = mean(gwas$p[causal]  < alpha, na.rm = TRUE),
+    type1_error      = mean(gwas$p[!causal] < alpha, na.rm = TRUE),
+    lambda_null      = genomic_lambda(gwas$p[!causal])
   )
 }
