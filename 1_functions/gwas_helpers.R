@@ -150,3 +150,25 @@ compare_to_truth <- function(gwas, truth, label = NA_character_, alpha = 0.05) {
     lambda_null      = genomic_lambda(gwas$p[!causal])
   )
 }
+
+#' Performance metrics by SNP group
+#'
+#' @param gwas Output of run_gwas().
+#' @param truth True effects (same order as gwas rows).
+#' @param groups Named list of row indices,
+#'   e.g. list(Y_snps = ..., Z_snps = ..., null = ...).
+#' @param label Analysis label.
+#' @param alpha Significance level for power and type I error.
+#' @return Data frame with one row per SNP group.
+compare_by_group <- function(gwas, truth, groups, label = NA_character_,
+                             alpha = 0.05) {
+  out <- lapply(names(groups), function(g) {
+    i <- groups[[g]]
+    r <- compare_to_truth(gwas[i, , drop = FALSE], truth[i],
+                          label = label, alpha = alpha)
+    r$snp_group <- g
+    r
+  })
+  out <- do.call(rbind, out)
+  out[, c("analysis", "snp_group", setdiff(names(out), c("analysis", "snp_group")))]
+}
