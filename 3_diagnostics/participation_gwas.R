@@ -84,6 +84,20 @@ summarise_participation <- function(res, thresholds = c(0.05, 1e-3, 5e-8)) {
   out
 }
 
+#' Participation GWAS without a participation indicator: GWAS of sex
+#'
+#' Autosomal SNPs cannot cause biological sex, so SNP-sex associations among
+#' participants indicate sex-differential participation (Pirastu et al. 2021;
+#' Lee et al. 2022). Summarise with summarise_participation().
+#'
+#' @param sex 0/1 sex (1 = male) among participants.
+#' @param G Genotype matrix for participants.
+#' @param covar Optional covariates (e.g. principal components).
+#' @return run_gwas() output (log-odds of male per allele).
+sex_gwas <- function(sex, G, covar = NULL) {
+  run_gwas(sex, G, covar = covar, family = "binomial")
+}
+
 # ---- Example (runs only when this file is run directly) ---------------------
 if (sys.nframe() == 0) {
   d <- readRDS("data/module_a.rds")
@@ -109,4 +123,19 @@ if (sys.nframe() == 0) {
     cat("Allele-frequency comparison (lambda =", round(attr(s2, "lambda"), 2), ")\n")
     print(s2)
   }
+  
+  # Version 3: GWAS of sex (module d)
+  for (sc in c("d_low", "d_high")) {
+    f <- sprintf("data/module_%s.rds", sc)
+    if (!file.exists(f)) next
+    d  <- readRDS(f)
+    sg <- sex_gwas(d$pheno$Sex, d$G)
+    s3 <- summarise_participation(sg)
+    cat(sprintf("\n==== %s: GWAS of sex (lambda = %.2f) ====\n",
+                sc, attr(s3, "lambda")))
+    print(s3)
+    cat("Proportion of SNPs with p < 0.05 by group:\n")
+    print(round(sapply(d$groups, function(i) mean(sg$p[i] < 0.05)), 2))
+  }
+  
 }
