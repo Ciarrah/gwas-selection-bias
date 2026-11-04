@@ -80,7 +80,6 @@ entirely in R (`ipw.R`).
 6_vignettes/                    worked examples by module
 7_figures/                      code for Figures 1 and 2
 8_shiny/                        method-selection app
-data/                           simulated data (not tracked; regenerate)
 results/                        outputs
 ```
 
