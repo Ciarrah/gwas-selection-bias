@@ -34,20 +34,6 @@ or neither (`null`).
 
 ``` r
 if (!file.exists("data/module_e.rds")) source("2_simulations/e_survival.R")
-```
-
-    ## Module (e) saved: 15051 of 50000 alive at recruitment (30%)
-    ##                 analysis snp_group mean_abs_bias        rmse  coverage type1_error
-    ##  full cohort (reference)    Y_only   0.006756197 0.008424087 0.9500000         NaN
-    ##  full cohort (reference)    R_only   0.008392604 0.010807387 0.9500000  0.05000000
-    ##  full cohort (reference)      both   0.008512812 0.011983892 0.9500000         NaN
-    ##  full cohort (reference)      null   0.007699515 0.009999302 0.9500000  0.05000000
-    ##        survivors (naive)    Y_only   0.013837688 0.016882003 0.9500000         NaN
-    ##        survivors (naive)    R_only   0.024293575 0.028889917 0.7500000  0.25000000
-    ##        survivors (naive)      both   0.022042971 0.028879105 0.8000000         NaN
-    ##        survivors (naive)      null   0.014390918 0.018634381 0.9357143  0.06428571
-
-``` r
 d <- readRDS("data/module_e.rds")
 p <- d$pheno
 alive <- p$R == 1
@@ -189,7 +175,7 @@ ggplot(plot_df, aes(truth, beta, colour = snp_group)) +
   theme_bw()
 ```
 
-![](e_survival_files/figure-gfm/summary-figure-1.png)<!-- -->
+![](../vignette_sources/e_survival_files/figure-gfm/summary-figure-1.png)<!-- -->
 
 Points on the dashed line are unbiased. Among survivors, survival-only
 SNPs (true effect 0) move away from zero. Their parental proxy estimates
@@ -220,11 +206,17 @@ sessionInfo()
     ## [1] ggplot2_4.0.3
     ## 
     ## loaded via a namespace (and not attached):
-    ##  [1] plotly_4.12.0       generics_0.1.4      tidyr_1.3.2         lattice_0.22-9      digest_0.6.39       magrittr_2.0.5      evaluate_1.0.5     
-    ##  [8] grid_4.6.0          RColorBrewer_1.1-3  fastmap_1.2.0       jsonlite_2.0.0      backports_1.5.1     mclust_6.1.3        httr_1.4.8         
-    ## [15] purrr_1.2.2         viridisLite_0.4.3   scales_1.4.0        codetools_0.2-20    lazyeval_0.2.3      cli_3.6.6           rlang_1.3.0        
-    ## [22] geepack_1.3.13      withr_3.0.3         yaml_2.3.12         otel_0.2.0          tools_4.6.0         coda_0.19-4.1       dplyr_1.2.1        
-    ## [29] broom_1.0.12        vctrs_0.7.3         R6_2.6.1            lifecycle_1.0.5     SlopeHunter_1.1.0   htmlwidgets_1.6.4   MASS_7.3-65        
-    ## [36] pkgconfig_2.0.3     rjags_4-18          pillar_1.11.1       gtable_0.3.6        glue_1.8.1          data.table_1.18.2.1 xfun_0.59          
-    ## [43] tibble_3.3.1        ieugwasr_1.1.0.9000 tidyselect_1.2.1    rstudioapi_0.18.0   knitr_1.51          farver_2.1.2        htmltools_0.5.9    
-    ## [50] rmarkdown_2.31      labeling_0.4.3      compiler_4.6.0      S7_0.2.2            indexevent_0.2.0
+    ##  [1] gtable_0.3.6           xfun_0.59              htmlwidgets_1.6.4      lattice_0.22-9         vctrs_0.7.3           
+    ##  [6] tools_4.6.0            generics_0.1.4         stats4_4.6.0           sandwich_3.1-2         tibble_3.3.1          
+    ## [11] pkgconfig_2.0.3        indexevent_0.2.0       Matrix_1.7-5           data.table_1.18.2.1    RColorBrewer_1.1-3    
+    ## [16] S7_0.2.2               lifecycle_1.0.5        compiler_4.6.0         farver_2.1.2           maxLik_1.6-10         
+    ## [21] codetools_0.2-20       systemfit_1.1-30       carData_3.0-6          htmltools_0.5.9        yaml_2.3.12           
+    ## [26] lazyeval_0.2.3         Formula_1.2-6          plotly_4.12.0          pillar_1.11.1          car_3.1-5             
+    ## [31] tidyr_1.3.2            MASS_7.3-65            abind_1.4-8            mclust_6.1.3           tidyselect_1.2.1      
+    ## [36] digest_0.6.39          mvtnorm_1.4-2          dplyr_1.2.1            purrr_1.2.2            labeling_0.4.3        
+    ## [41] geepack_1.3.13         splines_4.6.0          miscTools_0.6-30       fastmap_1.2.0          grid_4.6.0            
+    ## [46] cli_3.6.6              magrittr_2.0.5         broom_1.0.12           SlopeHunter_1.1.0      withr_3.0.3           
+    ## [51] scales_1.4.0           backports_1.5.1        rmarkdown_2.31         httr_1.4.8             otel_0.2.0            
+    ## [56] sampleSelection_1.2-16 rjags_4-18             zoo_1.8-15             VGAM_1.1-14            coda_0.19-4.1         
+    ## [61] evaluate_1.0.5         knitr_1.51             lmtest_0.9-40          viridisLite_0.4.3      rlang_1.3.0           
+    ## [66] glue_1.8.1             rstudioapi_0.18.0      jsonlite_2.0.0         ieugwasr_1.1.0.9000    R6_2.6.1

@@ -4,3 +4,6 @@
 .Ruserdata
 vignette_sources/*_cache/
 vignette_sources/*.html
+data/
+*.Rproj
+vignette_sources/*_cache/

@@ -182,7 +182,7 @@ ggplot(plot_df, aes(truth, beta, colour = snp_group)) +
   theme_bw()
 ```
 
-![](b_case_control_files/figure-gfm/summary-figure-1.png)<!-- -->
+![](../vignette_sources/b_case_control_files/figure-gfm/summary-figure-1.png)<!-- -->
 
 Points on the dashed line are unbiased. In the naive analysis,
 disease-only SNPs (true effect 0) spread away from zero. Weighting by
@@ -215,8 +215,17 @@ sessionInfo()
     ## [1] ggplot2_4.0.3
     ## 
     ## loaded via a namespace (and not attached):
-    ##  [1] gtable_0.3.6       dplyr_1.2.1        compiler_4.6.0     tidyselect_1.2.1   tidyr_1.3.2        scales_1.4.0       yaml_2.3.12        fastmap_1.2.0     
-    ##  [9] R6_2.6.1           labeling_0.4.3     generics_0.1.4     knitr_1.51         MASS_7.3-65        backports_1.5.1    tibble_3.3.1       pillar_1.11.1     
-    ## [17] RColorBrewer_1.1-3 rlang_1.3.0        broom_1.0.12       xfun_0.59          S7_0.2.2           otel_0.2.0         cli_3.6.6          withr_3.0.3       
-    ## [25] magrittr_2.0.5     digest_0.6.39      grid_4.6.0         rstudioapi_0.18.0  geepack_1.3.13     lifecycle_1.0.5    vctrs_0.7.3        evaluate_1.0.5    
-    ## [33] glue_1.8.1         farver_2.1.2       codetools_0.2-20   rmarkdown_2.31     purrr_1.2.2        tools_4.6.0        pkgconfig_2.0.3    htmltools_0.5.9
+    ##  [1] gtable_0.3.6           xfun_0.59              htmlwidgets_1.6.4      lattice_0.22-9         vctrs_0.7.3           
+    ##  [6] tools_4.6.0            generics_0.1.4         stats4_4.6.0           sandwich_3.1-2         tibble_3.3.1          
+    ## [11] pkgconfig_2.0.3        indexevent_0.2.0       Matrix_1.7-5           data.table_1.18.2.1    RColorBrewer_1.1-3    
+    ## [16] S7_0.2.2               lifecycle_1.0.5        compiler_4.6.0         farver_2.1.2           maxLik_1.6-10         
+    ## [21] codetools_0.2-20       systemfit_1.1-30       carData_3.0-6          htmltools_0.5.9        yaml_2.3.12           
+    ## [26] lazyeval_0.2.3         Formula_1.2-6          plotly_4.12.0          pillar_1.11.1          car_3.1-5             
+    ## [31] tidyr_1.3.2            MASS_7.3-65            abind_1.4-8            mclust_6.1.3           tidyselect_1.2.1      
+    ## [36] digest_0.6.39          mvtnorm_1.4-2          dplyr_1.2.1            purrr_1.2.2            labeling_0.4.3        
+    ## [41] geepack_1.3.13         splines_4.6.0          miscTools_0.6-30       fastmap_1.2.0          grid_4.6.0            
+    ## [46] cli_3.6.6              magrittr_2.0.5         broom_1.0.12           SlopeHunter_1.1.0      withr_3.0.3           
+    ## [51] scales_1.4.0           backports_1.5.1        rmarkdown_2.31         httr_1.4.8             otel_0.2.0            
+    ## [56] sampleSelection_1.2-16 rjags_4-18             zoo_1.8-15             VGAM_1.1-14            coda_0.19-4.1         
+    ## [61] evaluate_1.0.5         knitr_1.51             lmtest_0.9-40          viridisLite_0.4.3      rlang_1.3.0           
+    ## [66] glue_1.8.1             rstudioapi_0.18.0      jsonlite_2.0.0         ieugwasr_1.1.0.9000    R6_2.6.1
