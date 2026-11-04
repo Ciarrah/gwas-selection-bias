@@ -1,0 +1,234 @@
+---
+title: "Module (c): Index event bias"
+subtitle: "Companion to *Navigating Selection Bias in Genome-Wide Association Studies*"
+output:
+  github_document:
+    toc: true
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include = FALSE}
+# Knit from 6_vignettes/; all paths are relative to the repository root
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, fig.width = 8,
+                      fig.height = 5)
+```
+
+```{r packages}
+library(ggplot2)
+source("1_functions/gwas_helpers.R")
+source("3_diagnostics/negative_controls.R")
+source("5_correction-summary-level/dho.R")
+source("5_correction-summary-level/slope_hunter.R")
+source("5_correction-summary-level/mr_horse.R")
+
+cols <- c("analysis", "snp_group", "mean_abs_bias", "rmse", "coverage",
+          "type1_error")
+scen <- c("c1", "c2", "c3")
+```
+
+## Scenario
+
+Figure 2(c). Genotype G affects disease incidence X and progression Y, and an
+unmeasured factor U affects both. Progression is studied only among cases
+(X = 1). Conditioning on X induces an association between incidence SNPs and
+U, and hence with Y: each SNP's effect on progression is biased by about
+−b·β<sub>X</sub>, where β<sub>X</sub> is its effect on incidence.
+
+SNPs affect incidence only (`X_only`), progression only (`Y_only`), both
+(`both`), or neither (`null`). The three scenarios differ in the SNPs
+affecting both:
+
+- **c1 independent:** effects on incidence and progression are uncorrelated;
+- **c2 correlated:** they are correlated (ρ = 0.6), and incidence-only SNPs
+  dominate incidence heritability;
+- **c3 sparse:** few SNPs affect progression.
+
+Correction methods for this design use summary statistics: an incidence GWAS
+in the full cohort and a progression GWAS among cases.
+
+```{r simulate}
+if (!all(file.exists(sprintf("data/module_%s.rds", scen))))
+  source("2_simulations/c_index_event.R")
+dat <- setNames(lapply(scen, function(sc)
+  readRDS(sprintf("data/module_%s.rds", sc))), scen)
+
+knitr::kable(do.call(rbind, lapply(scen, function(sc) {
+  pr <- dat[[sc]]$params
+  data.frame(scenario = sc, label = pr$label, X_only = pr$n_x_only,
+             Y_only = pr$n_y_only, both = pr$n_both, rho_both = pr$rho_both,
+             cases = dat[[sc]]$n_cases, cohort = pr$n)
+})), row.names = FALSE)
+```
+
+## 1. The problem: GWAS of progression among cases
+
+```{r naive}
+by_scen <- function(res, sc, label) {
+  cbind(scenario = sc,
+        compare_by_group(res, dat[[sc]]$truth_y, dat[[sc]]$groups, label)[, cols])
+}
+
+knitr::kable(do.call(rbind, lapply(scen, function(sc) rbind(
+  by_scen(dat[[sc]]$gwas_y_pop, sc, "full cohort (reference)"),
+  by_scen(dat[[sc]]$gwas_y,     sc, "cases only (naive)")
+))), digits = 3, row.names = FALSE)
+```
+
+Among cases, incidence-only SNPs acquire spurious associations with
+progression, and SNPs affecting both are biased. Progression-only and null
+SNPs are unaffected.
+
+## 2. Diagnostic: negative control variants
+
+Suppose 20 incidence-only SNPs are known from prior evidence not to affect
+progression. Collider bias predicts their progression effects to be opposite
+in sign to their incidence effects (when U raises both incidence and
+progression). A directional test across the variants is more powerful than
+counting p < 0.05, and λ is unstable with so few variants.
+
+```{r negative-control-variants}
+dir_test <- function(bx, z) {
+  zd <- sum(sign(bx) * z) / sqrt(length(z))
+  c(directional_z = zd, directional_p = 2 * pnorm(-abs(zd)))
+}
+
+knitr::kable(do.call(rbind, lapply(scen, function(sc) {
+  d  <- dat[[sc]]
+  nc <- d$neg_control
+  s  <- d$sumstats[nc, ]
+  rbind(
+    data.frame(scenario = sc, analysis = "cases (naive)",
+               summarise_negative_control(d$gwas_y, nc),
+               t(dir_test(s$beta_x, s$beta_y / s$se_y))),
+    data.frame(scenario = sc, analysis = "full cohort (reference)",
+               summarise_negative_control(d$gwas_y_pop, nc),
+               t(dir_test(s$beta_x, s$beta_y_pop / s$se_y_pop))))
+})), digits = 3, row.names = FALSE)
+```
+
+## 3. Corrections
+
+All three methods estimate the collider slope b and adjust every SNP:
+β<sub>Y</sub> − b·β<sub>X</sub>. They differ in how b is estimated:
+
+- **DHO:** regression of β<sub>Y</sub> on β<sub>X</sub> across all SNPs,
+  with a Hedges-Olkin correction for regression dilution (`indexevent`
+  package). Assumes the SNP effects on incidence and progression are
+  uncorrelated.
+- **Slope-Hunter:** a mixture model that identifies the cluster of
+  incidence-only SNPs and uses its slope (`SlopeHunter` package). Assumes
+  incidence-only SNPs contribute at least as much to incidence heritability
+  as pleiotropic SNPs.
+- **MR-Horse adaptation:** a Bayesian model with a horseshoe prior on direct
+  effects on progression, allowing them to be sparse and correlated with
+  incidence effects (JAGS).
+
+The oracle is the Hedges-Olkin slope fitted only on the true incidence-only
+SNPs. It is a benchmark, not an exact truth, since it uses estimated effects
+from 50 to 100 SNPs.
+
+```{r corrections, cache = TRUE}
+fits <- setNames(lapply(scen, function(sc) {
+  d <- dat[[sc]]
+  s <- d$sumstats
+  mhs <- mr_horse_slope(s$beta_x, s$se_x, s$beta_y, s$se_y,
+                        use = s$p_x < 1e-3,
+                        model_file = "5_correction-summary-level/mr_horse_model.jags")
+  list(
+    dho    = dho_correct(s$snp, s$beta_x, s$se_x, s$beta_y, s$se_y,
+                         n = d$n_cases),
+    sh     = slope_hunter_correct(s$snp, s$beta_x, s$se_x, s$beta_y, s$se_y,
+                                  n = d$n_cases),
+    mhs    = mhs,
+    mh     = mr_horse_correct(s$snp, s$beta_x, s$se_x, s$beta_y, s$se_y,
+                              mhs, n = d$n_cases),
+    oracle = indexevent::indexevent(s$beta_x, s$se_x, s$beta_y, s$se_y,
+                                    prune = which(s$group == "X_only"),
+                                    method = "Hedges-Olkin")
+  )
+}), scen)
+```
+
+### Estimated collider slopes
+
+```{r slopes}
+slopes <- do.call(rbind, lapply(scen, function(sc) {
+  f  <- fits[[sc]]
+  fd <- attr(f$dho, "fit")
+  fs <- attr(f$sh, "fit")
+  data.frame(
+    scenario = sc,
+    method   = c("Oracle (X-only)", "DHO", "Slope-Hunter", "MR-Horse"),
+    slope    = c(f$oracle$b, fd$b, fs$b, f$mhs$b),
+    lower    = c(f$oracle$b.ci[1], fd$b.ci[1], fs$b_CI[1], f$mhs$ci[1]),
+    upper    = c(f$oracle$b.ci[2], fd$b.ci[2], fs$b_CI[2], f$mhs$ci[2])
+  )
+}))
+knitr::kable(slopes, digits = 3, row.names = FALSE)
+
+# Agreement of Slope-Hunter's incidence-only cluster with the truth
+knitr::kable(do.call(rbind, lapply(scen, function(sc) {
+  fs     <- attr(fits[[sc]]$sh, "fit")
+  hunted <- as.character(fs$Fit$SNP[fs$Fit$clusters == "Hunted"])
+  truth  <- dat[[sc]]$sumstats$group[match(hunted, dat[[sc]]$sumstats$snp)]
+  data.frame(scenario = sc, snps_hunted = length(hunted),
+             pct_truly_X_only = round(100 * mean(truth == "X_only")))
+})), row.names = FALSE)
+```
+
+### Adjusted SNP effects
+
+```{r adjusted}
+adj <- do.call(rbind, lapply(scen, function(sc) rbind(
+  by_scen(dat[[sc]]$gwas_y, sc, "naive (cases)"),
+  by_scen(fits[[sc]]$dho,   sc, "DHO"),
+  by_scen(fits[[sc]]$sh,    sc, "Slope-Hunter"),
+  by_scen(fits[[sc]]$mh,    sc, "MR-Horse")
+)))
+knitr::kable(adj, digits = 3, row.names = FALSE)
+```
+
+## 4. Summary
+
+```{r summary-slopes, fig.height = 4}
+slopes$method <- factor(slopes$method,
+                        levels = rev(c("Oracle (X-only)", "DHO",
+                                       "Slope-Hunter", "MR-Horse")))
+
+ggplot(slopes, aes(slope, method)) +
+  geom_vline(data = subset(slopes, method == "Oracle (X-only)"),
+             aes(xintercept = slope), linetype = "dashed", colour = "grey50") +
+  geom_pointrange(aes(xmin = lower, xmax = upper)) +
+  facet_wrap(~ scenario, nrow = 1) +
+  labs(x = "Estimated collider slope b (95% interval)", y = NULL) +
+  theme_bw()
+```
+
+```{r summary-type1, fig.height = 4}
+t1 <- subset(adj, snp_group == "X_only")
+t1$analysis <- factor(t1$analysis, levels = c("naive (cases)", "DHO",
+                                              "Slope-Hunter", "MR-Horse"))
+
+ggplot(t1, aes(analysis, type1_error)) +
+  geom_col(fill = "grey60") +
+  geom_hline(yintercept = 0.05, linetype = "dashed") +
+  facet_wrap(~ scenario, nrow = 1) +
+  labs(x = NULL, y = "Type I error, incidence-only SNPs") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+All three methods reduce the spurious associations of incidence-only SNPs
+towards the nominal 5%, but none is best in every scenario. DHO performs well
+when effects on incidence and progression are independent but under-corrects
+under correlated pleiotropy (c2). Slope-Hunter depends on incidence-only SNPs
+dominating incidence heritability. The MR-Horse adaptation is closest to the
+oracle under correlated pleiotropy, but its prior can over-correct when that
+correlation is absent (c1).
+
+```{r session}
+sessionInfo()
+```
