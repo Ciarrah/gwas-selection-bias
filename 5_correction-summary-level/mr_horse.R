@@ -27,7 +27,7 @@ source("1_functions/gwas_helpers.R")
 mr_horse_slope <- function(beta_x, se_x, beta_y, se_y, use,
                            n_iter = 10000, n_burnin = 10000, n_chains = 3,
                            seed = 2025,
-                           model_file = "3_methods/summary_level/mr_horse_model.jags") {
+                           model_file = "5_correction-summary-level/mr_horse_model.jags") {
   if (!requireNamespace("rjags", quietly = TRUE))
     stop("Install JAGS and the rjags package (see 0_install/install.R).")
 
