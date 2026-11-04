@@ -1,0 +1,168 @@
+---
+title: "Module (d): Sex-differential participation"
+subtitle: "Companion to *Navigating Selection Bias in Genome-Wide Association Studies*"
+output:
+  github_document:
+    toc: true
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include = FALSE}
+# Knit from 6_vignettes/; all paths are relative to the repository root
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, fig.width = 8,
+                      fig.height = 5)
+```
+
+```{r packages}
+library(ggplot2)
+source("1_functions/gwas_helpers.R")
+source("3_diagnostics/participation_gwas.R")
+source("5_correction-summary-level/sex_stratified.R")
+
+cols <- c("analysis", "snp_group", "mean_abs_bias", "rmse", "coverage",
+          "type1_error")
+scen <- c("d_low", "d_high")
+```
+
+## Scenario
+
+Figure 2(d). Genotype G and sex affect the outcome Y. Participation S depends
+on G with different effects in men and women, on sex, and on Y in opposite
+directions in men and women (following Lee et al. 2022). Pooling men and women
+then induces associations between participation SNPs and sex, and through sex
+with Y.
+
+SNPs affect Y (`Y_snps`), participation (`P_snps`), or neither (`null`). Two
+scenarios differ only in how common participation is:
+
+- **d_low:** 5% of the population participates;
+- **d_high:** 50% participates.
+
+Both have about 15,000 participants.
+
+```{r simulate}
+if (!all(file.exists(sprintf("data/module_%s.rds", scen))))
+  source("2_simulations/d_sex_differential.R")
+dat <- setNames(lapply(scen, function(sc)
+  readRDS(sprintf("data/module_%s.rds", sc))), scen)
+
+knitr::kable(do.call(rbind, lapply(scen, function(sc) {
+  d <- dat[[sc]]
+  data.frame(scenario = sc, participation = d$params$rate,
+             population = d$n_pop, participants = nrow(d$pheno),
+             pct_male = round(100 * mean(d$pheno$Sex)))
+})), row.names = FALSE)
+```
+
+## 1. The problem: pooled GWAS of men and women
+
+```{r naive}
+by_scen <- function(res, sc, label) {
+  cbind(scenario = sc,
+        compare_by_group(res, dat[[sc]]$truth, dat[[sc]]$groups, label)[, cols])
+}
+
+pooled <- setNames(lapply(scen, function(sc)
+  run_gwas(dat[[sc]]$pheno$Y, dat[[sc]]$G)), scen)
+
+knitr::kable(do.call(rbind, lapply(scen, function(sc)
+  by_scen(pooled[[sc]], sc, "pooled"))), digits = 3, row.names = FALSE)
+```
+
+Participation SNPs, which have no effect on Y, become associated with it, and
+Y-acting SNPs are biased when participation is rare.
+
+## 2. Diagnostic: participation GWAS
+
+There is no participation indicator for non-participants here. Instead,
+sex-differential participation is detected by testing SNP-sex associations
+among participants. Autosomal SNPs cannot cause biological sex, so any
+association indicates selection.
+
+```{r participation-gwas}
+for (sc in scen) {
+  d  <- dat[[sc]]
+  sg <- sex_gwas(d$pheno$Sex, d$G)
+  s  <- summarise_participation(sg)
+  cat(sprintf("\n%s: lambda = %.2f\n", sc, attr(s, "lambda")))
+  print(s, row.names = FALSE)
+  cat("Proportion of SNPs with p < 0.05, by group:\n")
+  print(round(sapply(d$groups, function(i) mean(sg$p[i] < 0.05)), 2))
+}
+```
+
+Both participation SNPs and Y-acting SNPs are associated with sex, because
+participation depends on the genotype and on the outcome differently in men
+and women. The diagnostic detects either route.
+
+## 3. Correction: sex-stratified GWAS meta-analysis
+
+GWAS are run separately in men and women and combined by inverse-variance
+weighted fixed-effects meta-analysis (Lee et al. 2022). A pooled GWAS
+adjusted for sex is shown for comparison.
+
+```{r stratified}
+fits <- setNames(lapply(scen, function(sc) {
+  p <- dat[[sc]]$pheno
+  list(adj   = run_gwas(p$Y, dat[[sc]]$G, covar = p[, "Sex", drop = FALSE]),
+       strat = sex_stratified_gwas(p$Y, dat[[sc]]$G, p$Sex))
+}), scen)
+
+res <- do.call(rbind, lapply(scen, function(sc) rbind(
+  by_scen(pooled[[sc]],      sc, "pooled"),
+  by_scen(fits[[sc]]$adj,    sc, "pooled, sex-adjusted"),
+  by_scen(fits[[sc]]$strat,  sc, "sex-stratified meta")
+)))
+knitr::kable(res, digits = 3, row.names = FALSE)
+```
+
+Stratification removes the bias when participation is rare (d_low) but not
+when it is common (d_high). There, participation within each sex still depends
+on both the participation SNPs and Y, so conditioning on it induces an
+association between them. Stratification and sex adjustment perform equally
+here; stratification also allows sex-specific SNP effects, which Cochran's Q
+tests.
+
+```{r heterogeneity}
+knitr::kable(data.frame(
+  scenario = scen,
+  prop_het_p_lt_0.05 = sapply(scen, function(sc)
+    mean(fits[[sc]]$strat$het_p < 0.05, na.rm = TRUE))
+), digits = 3, row.names = FALSE)
+```
+
+## 4. Summary
+
+```{r summary-figure, fig.height = 6}
+plot_df <- do.call(rbind, lapply(scen, function(sc) {
+  d   <- dat[[sc]]
+  grp <- rep(names(d$groups), lengths(d$groups))[order(unlist(d$groups))]
+  rbind(
+    data.frame(scenario = sc, analysis = "pooled",              snp_group = grp,
+               truth = d$truth, beta = pooled[[sc]]$beta),
+    data.frame(scenario = sc, analysis = "sex-stratified meta", snp_group = grp,
+               truth = d$truth, beta = fits[[sc]]$strat$beta)
+  )
+}))
+plot_df$scenario <- factor(plot_df$scenario, levels = scen)
+
+ggplot(plot_df, aes(truth, beta, colour = snp_group)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", colour = "grey50") +
+  geom_point(alpha = 0.7) +
+  facet_grid(scenario ~ analysis) +
+  labs(x = "True SNP effect", y = "Estimated SNP effect",
+       colour = "SNP group") +
+  theme_bw()
+```
+
+Points on the dashed line are unbiased. When participation is rare, pooling
+men and women pulls participation SNPs away from zero and distorts Y-acting
+SNPs, and stratification restores them. When participation is common, some
+participation SNPs remain off the line after stratification.
+
+```{r session}
+sessionInfo()
+```
