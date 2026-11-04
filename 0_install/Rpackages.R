@@ -3,7 +3,7 @@
 # Installs all R packages used in this repository, check that JAGS
 # is available (required for the MR-Horse adaptation).
 #
-# Run once from the repository root:  source("Rpackages.R")
+# Run once from the repository root:  source("0_install/Rpackages.R")
 # =============================================================================
 
 # ---- CRAN packages ----------------------------------------------------------
@@ -31,7 +31,7 @@ if (length(missing_cran) > 0) {
 # ---- GitHub packages --------------------------------------------------------
 github_pkgs <- c(
   SlopeHunter = "Osmahmoud/SlopeHunter",     # Slope-Hunter (Mahmoud et al., 2022)
-  indexevent  = "DudbridgeLab/indexevent"    # DHO reference implementation (validation only)
+  indexevent  = "DudbridgeLab/indexevent"    # DHO reference implementation (validation only), DHO correction
 )
 
 for (pkg in names(github_pkgs)) {
@@ -61,7 +61,7 @@ if (jags_ok) {
 # ---- SPREG note -------------------------------------------------------------
 message("Note: SPREG is external software and is not installed by this script. ",
         "Download it from https://dlin.web.unc.edu/software/spreg-2/ ; ",
-        "methods/individual_level/spreg_prepare.R exports input files for it.")
+        "4_correction-individual-level/spreg_prepare.R. exports input files for it.")
 
 # ---- Record package versions ------------------------------------------------
 # After the first successful run, uncomment to create renv.lock:
